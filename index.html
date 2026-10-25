@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F2F3F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12141C" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kriya">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Kriya Timing Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: single narrow column — status cards up top, quick-log row, then today's log. */
+:root{
+  --bg:#F2F3F7; --surface:#FFFFFF; --ink:#1A1D2B; --muted:#5D6278; --line:#DDE0EA;
+  --accent:#B5621A; --accent-soft:#F6E7D6;
+  --stop:#E58A85; --sleep:#CBC6EE; --sleep-ink:#5B4FB0; --ok:#1E7A4F; --ok-soft:#DCF0E5; --wait:#9A5B00; --wait-soft:#FBEBCF; --no:#A23A3A; --no-soft:#F6DEDE;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141C; --surface:#1B1E29; --ink:#E9EAF2; --muted:#9A9FB5; --line:#2C3040;
+  --accent:#E59A55; --accent-soft:#3A2A1B;
+  --stop:#8E3A3A; --sleep:#3A3566; --sleep-ink:#A9A0F0; --ok:#6BD39E; --ok-soft:#173326; --wait:#F0B860; --wait-soft:#3A2C14; --no:#F08C8C; --no-soft:#3A1E1E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141C; --surface:#1B1E29; --ink:#E9EAF2; --muted:#9A9FB5; --line:#2C3040;
+  --accent:#E59A55; --accent-soft:#3A2A1B;
+  --stop:#8E3A3A; --sleep:#3A3566; --sleep-ink:#A9A0F0; --ok:#6BD39E; --ok-soft:#173326; --wait:#F0B860; --wait-soft:#3A2C14; --no:#F08C8C; --no-soft:#3A1E1E; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+h1{font-family:var(--display);font-weight:700;font-size:1.7rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.9rem}
+h2{font-family:var(--display);font-weight:500;font-size:1.05rem;margin:0 0 8px}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.cards{display:grid;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}
+.card .name{font-family:var(--display);font-weight:700;font-size:1.15rem}
+.card .detail{grid-column:1/-1;color:var(--muted);font-size:.88rem}
+.time{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pill{font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.wait{background:var(--wait-soft);color:var(--wait)}
+.pill.no{background:var(--no-soft);color:var(--no)}
+.big{grid-column:1/-1;font-family:var(--mono);font-size:1.5rem;font-variant-numeric:tabular-nums}
+.log-form{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.btns.three{grid-template-columns:repeat(3,1fr)}
+.btns.three button{padding:11px 6px}
+li input.et{padding:4px 6px;font-size:.88rem}
+button{font:inherit;font-weight:600;border-radius:10px;padding:11px 12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.prac{background:var(--accent-soft);border-color:transparent}
+input[type=time]{font:inherit;font-family:var(--mono);padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.hint{font-size:.82rem;color:var(--muted)}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+li{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
+li:first-child{border-top:none}
+li .what{flex:1;min-width:0}
+li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);background:transparent}
+.empty{padding:14px 16px;color:var(--muted)}
+.plan{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.plan ol{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.rules{font-size:.85rem;color:var(--muted)}
+.rules summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.rules ul{background:none;border:none;margin-top:8px}
+.rules li{border:none;padding:2px 0;display:list-item;list-style:disc;margin-left:1.2em}
+.tl{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px;display:grid;gap:10px}
+.tl-body{position:relative;display:grid;gap:6px}
+.lane{display:grid;grid-template-columns:58px 1fr;align-items:center;gap:8px}
+.ln{font-size:.72rem;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.track{position:relative;height:20px;background:var(--bg);border-radius:4px}
+.seg{position:absolute;top:0;bottom:0;border-radius:3px}
+.dot{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid var(--surface);z-index:2}
+.dot.meal{background:var(--accent);width:14px;height:14px}
+.dot.snack{background:var(--accent);width:9px;height:9px}
+.dot.prac{background:var(--ink)}
+.dot.future{background:var(--surface);border:2px dashed var(--ink);width:12px;height:12px}
+.planned{color:var(--muted);font-size:.8rem}
+.seg.notempty,.seg.toosoon,.k.notempty{background:var(--stop)}
+.seg.ready,.k.ready{background:var(--ok-soft)}
+.seg.window,.k.window{background:var(--ok)}
+.seg.open{background:var(--ok-soft)}
+.seg.nosleep,.k.nosleep{background:var(--sleep)}
+#tlwrap{position:relative;touch-action:pan-y;cursor:crosshair;user-select:none;-webkit-user-select:none}
+#tl{display:grid;gap:6px;position:relative}
+.scrub{position:absolute;top:8px;bottom:14px;width:2px;margin-left:-1px;background:var(--ink);z-index:4;pointer-events:none}
+.readout{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:baseline;background:var(--bg);border-radius:10px;padding:10px 12px;min-height:5.6em}
+.readout .rt{grid-row:1/4;font-family:var(--mono);font-size:1.35rem;font-variant-numeric:tabular-nums;align-self:center}
+.readout .rt small{display:block;font-family:var(--body);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.readout .rl{font-size:.85rem}
+.readout .rl b{font-weight:600}
+.readout .rl .time{font-size:.85rem}
+.readout .c{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.c.stop{background:var(--no)} .c.go{background:var(--ok)} .c.sleep{background:var(--sleep-ink)}
+.seg.done{background:var(--ink)}
+.seg.sessplan{background:transparent;border:1.5px dashed var(--muted);box-sizing:border-box}
+.ticks{position:relative;height:16px}
+.ticks span{position:absolute;transform:translateX(-50%);font-family:var(--mono);font-size:.68rem;color:var(--muted);white-space:nowrap}
+.nowline{position:absolute;top:-4px;bottom:14px;width:2px;background:var(--accent);z-index:3;pointer-events:none}
+.nowline::after{content:"now";position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:.62rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.tl-body{padding-top:12px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.75rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.k{display:inline-block;width:14px;height:10px;border-radius:2px}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.foot button{font-weight:500;font-size:.85rem;padding:6px 10px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Kriya Timing Tracker</h1>
+    <p class="sub" id="now"></p>
+  </header>
+
+  <section class="tl" aria-label="Today's timing lanes">
+    <div class="readout" id="ro"></div>
+    <div class="tl-body" id="tlwrap"><div id="tl"></div><div class="scrub" id="scrub" hidden></div></div>
+    <div class="legend">
+      <span><i class="k notempty"></i>Not yet</span>
+      <span><i class="k ready"></i>OK</span>
+      <span><i class="k window"></i>Shoonya window</span>
+      <span><i class="k nosleep"></i>No sleep</span>
+    </div>
+    <p class="hint" style="margin:0">Drag across the lanes to check any time. It snaps to the ends of blocks. Tap the panel above to go back to now.</p>
+  </section>
+
+  <section class="cards" aria-live="polite">
+    <div class="card" id="c-shoonya"></div>
+    <div class="card" id="c-sck"></div>
+    <div class="card" id="c-smk"></div>
+    <div class="card" id="c-sleep"></div>
+  </section>
+
+  <section class="plan" id="plan"></section>
+
+  <section class="log-form">
+    <h2>Log something</h2>
+    <div class="row">
+      <label class="label" for="t">Time</label>
+      <input type="time" id="t">
+      <button type="button" id="useNow" style="padding:8px 10px;font-weight:500">Now</button>
+    </div>
+    <div class="btns">
+      <button type="button" data-k="meal">Meal</button>
+      <button type="button" data-k="snack">Snack</button>
+    </div>
+    <div class="btns three">
+      <button type="button" class="prac" data-k="shoonya">Shoonya</button>
+      <button type="button" class="prac" data-k="sck">Shakti Chalana</button>
+      <button type="button" class="prac" data-k="smk">Shambhavi</button>
+    </div>
+    <p class="hint" id="msg">Leave the time on “now”, set an earlier time, or set a later time to plan ahead. Log everything at the time you finished it, including plans.</p>
+  </section>
+
+  <section>
+    <h2>Today</h2>
+    <ul id="list"></ul>
+  </section>
+
+  <details class="rules">
+    <summary>Rules this uses</summary>
+    <ul>
+      <li>Shakti Chalana and Shambhavi: empty stomach, meaning 4 h after a meal and 2.5 h after a snack.</li>
+      <li>Shakti Chalana and Shambhavi: 4 h after the previous one of the same practice, and at most twice a day each.</li>
+      <li>Shoonya: 3.5–4 h after the previous shoonya, when somewhat tired and hungry.</li>
+      <li>No sleep for 1 h after shoonya.</li>
+      <li>Every entry is a finish time. A “ready” time is when you can start.</li>
+    </ul>
+  </details>
+
+  <details class="rules" id="backup">
+    <summary>Back up or move your log</summary>
+    <div style="display:grid;gap:8px;margin-top:8px">
+      <p style="margin:0">Copy the log to keep a backup, or paste one from another phone. Pasting adds the entries to what is already here.</p>
+      <textarea id="bk" rows="4" style="font:inherit;font-family:var(--mono);font-size:.78rem;width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)" aria-label="Backup text"></textarea>
+      <div class="row">
+        <button type="button" id="bkCopy" style="padding:8px 12px">Copy log</button>
+        <button type="button" id="bkLoad" style="padding:8px 12px">Add pasted log</button>
+        <span class="hint" id="bkMsg"></span>
+      </div>
+    </div>
+  </details>
+
+  <div class="foot">
+    <span class="hint">Your log is saved on this phone only. Nobody else can see it.</span>
+    <button type="button" id="clear">Clear today</button>
+  </div>
+</div>
+
+<script>
+const H = 3600e3, MIN = 60e3, SL = 0;   // every entry is logged at its finish time
+const NAMES = {meal:"Meal", snack:"Snack", shoonya:"Shoonya", sck:"Shakti Chalana", smk:"Shambhavi"};
+const SHORT = {sck:"SCK", smk:"SMK"};
+const KRIYAS = ["sck","smk"];
+const KEY = "kriya-log-v1";
+const dayKey = d => d.toLocaleDateString("en-CA");
+const gap = k => k==="snack" ? 2.5*H : 4*H;   // how long each entry blocks a kriya
+
+let log = [];
+try { log = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e) { log = []; }
+if (!Array.isArray(log)) log = [];
+log = log.filter(e => e && NAMES[e.k] && e.t > Date.now() - 14*24*H);
+log.forEach(e => { if (!e.id) e.id = `${e.t}-${Math.random().toString(36).slice(2,7)}`; });
+let deleted = [];
+try { deleted = JSON.parse(localStorage.getItem(KEY+"-del") || "[]"); } catch(e) { deleted = []; }
+const fresh = () => { const c = Date.now() - 14*24*H; log = log.filter(e => e.t > c); deleted = deleted.filter(d => d.t > c); };
+
+const save = () => {
+  fresh();
+  try { localStorage.setItem(KEY, JSON.stringify(log)); localStorage.setItem(KEY+"-del", JSON.stringify(deleted)); } catch(e){}
+};
+save();
+
+// Ask the browser not to clear this app's data
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+const fmt = t => new Date(t).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+const hhmm = t => { const d = new Date(t); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+const dur = ms => { const m = Math.max(0, Math.round(ms/MIN)); const h = Math.floor(m/60); return h ? `${h}h ${String(m%60).padStart(2,"0")}m` : `${m}m`; };
+const last = (k, upto=Infinity) => log.filter(e => e.k===k && e.t<=upto).reduce((a,e) => e.t>a ? e.t : a, 0);
+const nextPlanned = k => log.filter(e => e.k===k && e.t>Date.now()).reduce((a,e) => (!a || e.t<a) ? e.t : a, 0);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Entries that block kriya k: all food plus earlier sessions of k
+const blockers = (k, upto=Infinity) => log.filter(e => (e.k==="meal" || e.k==="snack" || e.k===k) && e.t<=upto);
+function readyAt(k){
+  const c = blockers(k, Date.now()).map(e => ({t:e.t+gap(e.k), why: e.k===k ? `4 h after last ${SHORT[k]} at ${fmt(e.t)}` : `${e.k==="meal"?"4 h after meal":"2.5 h after snack"} at ${fmt(e.t)}`}))
+    .sort((a,b) => b.t-a.t)[0];
+  return c || {t:0, why:"Nothing logged yet"};
+}
+const endOfDay = t => { const d = new Date(t); d.setHours(24,0,0,0); return d.getTime(); };
+const onDay = (k, t) => log.filter(e => e.k===k && dayKey(new Date(e.t))===dayKey(new Date(t))).sort((a,b)=>a.t-b.t);
+const doneBy = (k, t) => onDay(k, t).filter(e => e.t <= t).length;
+const secondOfDay = (k, t) => { const l = onDay(k, t); return l[1] ? l[1].t : null; };   // daily limit is 2
+function mergeBlocks(k){
+  const iv = blockers(k).map(e => [e.t, e.t+gap(e.k)]).sort((a,b)=>a[0]-b[0]), out = [];
+  iv.forEach(([a,b]) => { const m = out[out.length-1]; if (m && a <= m[1]) m[1] = Math.max(m[1], b); else out.push([a,b]); });
+  return out;
+}
+
+let TL = null, scrubT = null;
+
+function renderLanes(){
+  const now = Date.now(), td = dayKey(new Date());
+  const todays = log.filter(e => dayKey(new Date(e.t)) === td);
+  const sd = new Date(Math.min(now - 2*H, ...todays.map(e => e.t))); sd.setMinutes(0,0,0);
+  const s = sd.getTime();
+  const ls = last("shoonya");
+  const ed = new Date(Math.max(now+4*H, ls ? ls+5*H : 0, ...KRIYAS.map(k => readyAt(k).t + H), s+8*H));
+  if (ed.getMinutes() || ed.getSeconds()) ed.setHours(ed.getHours()+1,0,0,0);
+  const e = ed.getTime();
+  const x = t => (Math.min(Math.max(t,s),e)-s)/(e-s)*100;
+  const seg = (a,b,cls,tip) => (b<=s||a>=e||b<=a) ? "" : `<div class="seg ${cls}" style="left:${x(a)}%;width:${x(b)-x(a)}%" title="${tip}"></div>`;
+  const dot = (t,cls,tip) => (t<s||t>e) ? "" : `<div class="dot ${cls}${t>now?" future":""}" style="left:${x(t)}%" title="${t>now?"Planned: ":""}${tip}"></div>`;
+  const inRange = log.filter(v => v.t >= s - 5*H && v.t <= e).sort((a,b)=>a.t-b.t);
+  const edges = [now];
+
+  const food = inRange.filter(v=>v.k==="meal"||v.k==="snack").map(v => dot(v.t, v.k, `${NAMES[v.k]} ${fmt(v.t)}`)).join("");
+
+  const merged = {}, kLane = {};
+  KRIYAS.forEach(k => {
+    merged[k] = mergeBlocks(k);
+    let html = "", cur = s;
+    merged[k].forEach(([a,b]) => { html += seg(cur, a, "ready", "OK") + seg(a, b, "notempty", `Not until ${fmt(b)}`); cur = Math.max(cur, b); edges.push(a,b); });
+    html += seg(cur, e, "ready", `OK from ${fmt(cur)}`);
+    [...new Set([s, e-1].map(endOfDay))].forEach(eod => { const c = secondOfDay(k, eod-1); if (c) { html += seg(c, eod, "notempty", `Done twice today`); edges.push(c, eod); } });
+    html += inRange.filter(v=>v.k===k).map(v => dot(v.t, "prac", `${SHORT[k]} ${fmt(v.t)}`)).join("");
+    kLane[k] = html;
+  });
+
+  const sh = inRange.filter(v=>v.k==="shoonya");
+  let shoo = "", sleep = "";
+  sh.forEach((v,i) => {
+    const next = sh[i+1] ? sh[i+1].t : e, t = v.t;
+    shoo += seg(t+SL, Math.min(t+SL+3.5*H, next), "toosoon", `Too soon until ${fmt(t+SL+3.5*H)}`);
+    shoo += seg(t+SL+3.5*H, Math.min(t+SL+4*H, next), "window", `Window ${fmt(t+SL+3.5*H)}–${fmt(t+SL+4*H)}`);
+    if (!sh[i+1]) shoo += seg(t+SL+4*H, e, "open", "Allowed");
+    shoo += dot(t, "prac", `Shoonya ${fmt(t)}`);
+    sleep += seg(t+SL, t+SL+H, "nosleep", `No sleep until ${fmt(t+SL+H)}`);
+    edges.push(t, t+SL, t+SL+H, t+SL+3.5*H, t+SL+4*H);
+  });
+  shoo = (sh.length ? seg(s, sh[0].t, "open", "Any time you’re tired & hungry") : seg(s, e, "open", "Any time you’re tired & hungry")) + shoo;
+  inRange.forEach(v => edges.push(v.t));
+
+  const span = (e-s)/H, step = span > 10 ? 2 : 1;
+  let ticks = "";
+  for (let h = 0; h <= span; h += step) {
+    const t = s + h*H, lab = new Date(t).toLocaleTimeString([], {hour:"numeric"}).replace(/\s?AM/,"a").replace(/\s?PM/,"p");
+    ticks += `<span style="left:${x(t)}%">${lab}</span>`;
+  }
+
+  const lane = (name, inner) => `<div class="lane"><span class="ln">${name}</span><div class="track">${inner}</div></div>`;
+  document.getElementById("tl").innerHTML =
+    lane("Food", food) + lane("Shoonya", shoo) + lane("SCK", kLane.sck) + lane("SMK", kLane.smk) + lane("Sleep", sleep) +
+    `<div class="lane"><span></span><div class="ticks">${ticks}</div></div>` +
+    `<div class="nowline" style="left:calc(66px + (100% - 66px) * ${x(now)/100})"></div>`;
+
+  TL = {s, e, merged, sh, edges: edges.filter(t => t>=s && t<=e)};
+  showAt(scrubT ?? now);
+}
+
+function stateAt(t){
+  const rows = [];
+  const prev = TL.sh.filter(v => v.t <= t).pop();
+  if (!prev) rows.push(`<span class="c go"></span><b>Shoonya:</b> OK when tired &amp; hungry`);
+  else if (t < prev.t+SL+3.5*H) rows.push(`<span class="c stop"></span><b>Shoonya:</b> too soon until <span class="time">${fmt(prev.t+SL+3.5*H)}</span>`);
+  else if (t < prev.t+SL+4*H) rows.push(`<span class="c go"></span><b>Shoonya:</b> in window until <span class="time">${fmt(prev.t+SL+4*H)}</span>`);
+  else rows.push(`<span class="c go"></span><b>Shoonya:</b> allowed`);
+  KRIYAS.forEach(k => {
+    const c2 = secondOfDay(k, t);
+    if (c2 !== null && t >= c2) { rows.push(`<span class="c stop"></span><b>${SHORT[k]}:</b> done twice today; OK after midnight`); return; }
+    const iv = TL.merged[k].find(([a,b]) => t >= a && t < b);
+    if (!iv) { rows.push(`<span class="c go"></span><b>${SHORT[k]}:</b> OK`); return; }
+    const act = blockers(k).filter(e => t >= e.t && t < e.t+gap(e.k));
+    const why = [act.some(e=>e.k!==k) && "digesting", act.some(e=>e.k===k) && `too soon after last ${SHORT[k]}`].filter(Boolean).join(" + ");
+    const okAt = Math.max(...act.map(e => e.t+gap(e.k)));
+    rows.push(`<span class="c stop"></span><b>${SHORT[k]}:</b> ${why}; OK at <span class="time">${fmt(okAt)}</span>`);
+  });
+  rows.push(prev && t < prev.t+SL+H
+    ? `<span class="c sleep"></span><b>Sleep:</b> not until <span class="time">${fmt(prev.t+SL+H)}</span>`
+    : `<span class="c go"></span><b>Sleep:</b> OK`);
+  return rows;
+}
+function showAt(t){
+  if (!TL) return;
+  const isNow = scrubT === null;
+  document.getElementById("ro").innerHTML =
+    `<span class="rt" style="grid-row:1/6"><small>${isNow ? "Now" : "At"}</small>${fmt(t)}</span>` +
+    stateAt(t).map(r => `<span class="rl">${r}</span>`).join("");
+  const sc = document.getElementById("scrub");
+  if (isNow) { sc.hidden = true; return; }
+  sc.hidden = false;
+  sc.style.left = `calc(66px + (100% - 66px) * ${(t-TL.s)/(TL.e-TL.s)})`;
+}
+
+function kriyaCard(k){
+  const now = Date.now(), r = readyAt(k), ok = now >= r.t, l = last(k, now), pl = nextPlanned(k), n = doneBy(k, now);
+  if (n >= 2) {
+    document.getElementById("c-"+k).innerHTML = `
+      <span class="name">${NAMES[k]}</span><span class="pill ok">Done</span>
+      <span class="big">Done for today</span>
+      <span class="detail">2 of 2 today · last done ${fmt(l)}</span>`;
+    return;
+  }
+  document.getElementById("c-"+k).innerHTML = `
+    <span class="name">${NAMES[k]}</span>
+    <span class="pill ${ok?"ok":"no"}">${ok?"Ready":"Not yet"}</span>
+    <span class="big">${ok ? "Ready now" : `${fmt(r.t)} <span style="font-size:.9rem;color:var(--muted)">in ${dur(r.t-now)}</span>`}</span>
+    <span class="detail">${r.why}${l ? ` · last done ${fmt(l)}` : ""}${pl ? ` · planned ${fmt(pl)}` : ""} · ${n} of 2 today</span>`;
+}
+
+function render(){
+  const now = Date.now();
+  renderLanes();
+  document.getElementById("now").textContent = new Date().toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"}) + " · " + fmt(now);
+
+  KRIYAS.forEach(kriyaCard);
+
+  const ls = last("shoonya", now), lsAll = last("shoonya"), plSh = nextPlanned("shoonya");
+  const lastFood = Math.max(last("meal", now), last("snack", now));
+  let sh;
+  if (!ls) {
+    sh = `<span class="name">Shoonya</span><span class="pill ok">Go by feel</span>
+      <span class="big">When tired &amp; hungry</span>
+      <span class="detail">${plSh ? `Planned for ${fmt(plSh)}` : "No shoonya done yet"}${lastFood ? ` · last ate ${fmt(lastFood)} (${dur(now-lastFood)} ago)` : ""}</span>`;
+  } else {
+    const open = ls+SL+3.5*H, ideal = ls+SL+4*H, ok = now >= open;
+    sh = `<span class="name">Shoonya</span>
+      <span class="pill ${ok?"ok":"no"}">${ok?(now<=ideal?"In window":"Open"):"Too soon"}</span>
+      <span class="big">${ok ? "Allowed now" : `${fmt(open)} <span style="font-size:.9rem;color:var(--muted)">in ${dur(open-now)}</span>`}</span>
+      <span class="detail">Window ${fmt(open)}–${fmt(ideal)} · last done ${fmt(ls)}${plSh ? ` · planned ${fmt(plSh)}` : ""}</span>`;
+  }
+  document.getElementById("c-shoonya").innerHTML = sh;
+
+  const sl = ls ? ls+SL+H : 0, sleepOk = now >= sl;
+  document.getElementById("c-sleep").innerHTML = `
+    <span class="name">Sleep</span>
+    <span class="pill ${sleepOk?"ok":"no"}">${sleepOk?"OK":"Stay awake"}</span>
+    <span class="detail">${ls ? (sleepOk ? `Clear since ${fmt(sl)}` : `No sleep until ${fmt(sl)} (${dur(sl-now)})`) : (plSh ? `After your ${fmt(plSh)} shoonya: no sleep until ${fmt(plSh+SL+H)}` : "No shoonya yet today")}</span>`;
+
+  const steps = [];
+  if (plSh) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>`);
+  steps.push(lsAll
+    ? `${plSh ? "Then next" : "Next"} <b>shoonya</b> from <span class="time">${fmt(Math.max(now, lsAll+SL+3.5*H))}</span>, ideally by <span class="time">${fmt(lsAll+SL+4*H)}</span>`
+    : `<b>Shoonya</b> whenever you’re somewhat tired &amp; hungry`);
+  KRIYAS.forEach(k => { const r = readyAt(k).t; if (doneBy(k, now) >= 2) { steps.push(`<b>${NAMES[k]}</b> is done for today`); return; } steps.push(`<b>${NAMES[k]}</b> ${now >= r ? "is OK now" : `from <span class="time">${fmt(r)}</span>`}`); });
+  document.getElementById("plan").innerHTML = `<h2>From here</h2><ol>${steps.map(x=>`<li style="display:list-item;border:none;padding:0">${x}</li>`).join("")}</ol>
+    <p class="hint" style="margin:8px 0 0">Any food you log pushes back Shakti Chalana and Shambhavi.</p>`;
+
+  if (document.activeElement && document.activeElement.classList.contains("et")) return;
+  const today = log.slice().sort((a,b)=>a.t-b.t);
+  document.getElementById("list").innerHTML = today.length ? today.map(e => `
+    <li><input type="time" class="et" id="et-${esc(e.id)}" data-id="${esc(e.id)}" value="${hhmm(e.t)}" aria-label="Time for ${esc(NAMES[e.k])}">
+    <span class="what">${esc(NAMES[e.k])}${e.t > Date.now() ? ` <span class="planned">planned</span>` : ""}</span>
+    <button type="button" class="x" data-del="${esc(e.id)}" aria-label="Remove ${esc(NAMES[e.k])} at ${fmt(e.t)}">Remove</button></li>`).join("")
+    : `<li class="empty">Nothing logged yet. Start with your last meal or snack.</li>`;
+}
+
+// Log form
+const tIn = document.getElementById("t");
+let manual = false;
+const setNow = () => { tIn.value = hhmm(Date.now()); manual = false; };
+setNow();
+tIn.addEventListener("input", () => manual = true);
+document.getElementById("useNow").onclick = setNow;
+document.querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
+  let t = Date.now();
+  if (manual && tIn.value) {
+    const [h,mi] = tIn.value.split(":").map(Number), d = new Date(); d.setHours(h,mi,0,0);
+    if (d.getTime() > Date.now() + 8*H) d.setDate(d.getDate()-1);   // far-future time means last night; otherwise it is planned for today
+    t = d.getTime();
+  }
+  log.push({k:b.dataset.k, t, id:`${t}-${Math.random().toString(36).slice(2,7)}`}); save(); setNow(); render();
+  const nDay = onDay(b.dataset.k, t).length;
+  if ((b.dataset.k==="sck" || b.dataset.k==="smk") && nDay > 2) { document.getElementById("msg").textContent = `Logged, but that’s ${NAMES[b.dataset.k]} #${nDay} today. The limit is 2.`; return; }
+  document.getElementById("msg").textContent = t > Date.now() ? `Planned ${NAMES[b.dataset.k]} for ${fmt(t)}.` : `Logged ${NAMES[b.dataset.k]} at ${fmt(t)}.`;
+});
+
+// Edit / remove entries
+const listEl = document.getElementById("list");
+listEl.addEventListener("change", ev => {
+  const id = ev.target.dataset.id; if (!id || !ev.target.value) return;
+  const en = log.find(e => e.id === id); if (!en) return;
+  const [h,mi] = ev.target.value.split(":").map(Number), d = new Date(en.t); d.setHours(h,mi,0,0);
+  en.t = d.getTime(); save(); render();
+});
+listEl.addEventListener("click", ev => {
+  const id = ev.target.dataset.del; if (!id) return;
+  const i = log.findIndex(e => e.id === id); if (i>=0) { deleted.push({id, t: log[i].t}); log.splice(i,1); save(); render(); }
+});
+let armed = false;
+document.getElementById("clear").onclick = ev => {
+  if (!armed) { armed = true; ev.target.textContent = "Tap again to clear"; setTimeout(()=>{armed=false; ev.target.textContent="Clear today";}, 3000); return; }
+  const today = dayKey(new Date()); log.filter(e => dayKey(new Date(e.t)) === today).forEach(e => deleted.push({id:e.id, t:e.t})); log = log.filter(e => dayKey(new Date(e.t)) !== today); save(); armed=false; ev.target.textContent="Clear today"; render();
+};
+
+// Scrubbing
+(function(){
+  const wrap = document.getElementById("tlwrap");
+  let dragging = false;
+  const pick = ev => {
+    if (!TL) return;
+    const rect = wrap.getBoundingClientRect(), x0 = rect.left + 66, w = rect.width - 66;
+    const p = Math.min(1, Math.max(0, (ev.clientX - x0) / w));
+    let t = TL.s + p*(TL.e-TL.s);
+    const tol = (TL.e-TL.s) * 0.02;
+    let best = null;
+    TL.edges.forEach(g => { if (Math.abs(g-t) < tol && (best===null || Math.abs(g-t) < Math.abs(best-t))) best = g; });
+    t = best !== null ? best : Math.round(t/(5*MIN))*(5*MIN);
+    scrubT = t; showAt(t);
+  };
+  wrap.addEventListener("pointerdown", ev => { dragging = true; try { wrap.setPointerCapture(ev.pointerId); } catch(e){} pick(ev); });
+  wrap.addEventListener("pointermove", ev => { if (dragging || ev.pointerType === "mouse") pick(ev); });
+  wrap.addEventListener("pointerup", () => { dragging = false; });
+  wrap.addEventListener("pointercancel", () => { dragging = false; });
+  wrap.addEventListener("pointerleave", ev => { if (ev.pointerType === "mouse" && !dragging) { scrubT = null; showAt(Date.now()); } });
+})();
+document.getElementById("ro").addEventListener("click", () => { scrubT = null; showAt(Date.now()); });
+
+// Backup
+const bk = document.getElementById("bk"), bkMsg = document.getElementById("bkMsg");
+document.getElementById("bkCopy").onclick = () => {
+  bk.value = JSON.stringify({kriyaLog: 1, entries: log});
+  const done = () => bkMsg.textContent = "Copied. Paste it somewhere safe, like Notes.";
+  const fallback = () => { bk.focus(); bk.select(); bkMsg.textContent = "Selected. Copy it from the box."; };
+  try { navigator.clipboard.writeText(bk.value).then(done, fallback); } catch(e) { fallback(); }
+};
+document.getElementById("bkLoad").onclick = () => {
+  try {
+    const d = JSON.parse(bk.value), list = Array.isArray(d) ? d : d.entries;
+    if (!Array.isArray(list)) throw 0;
+    const have = new Set(log.map(e => e.id)); let n = 0;
+    list.forEach(e => { if (e && NAMES[e.k] && typeof e.t === "number" && e.id && !have.has(e.id)) { log.push(e); n++; } });
+    save(); render(); bkMsg.textContent = `Added ${n} entr${n===1?"y":"ies"}.`;
+  } catch(e) { bkMsg.textContent = "That text isn’t a tracker log. Paste the whole thing from Copy log."; }
+};
+
+if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch(e){} }
+
+render();
+setInterval(() => { if (!manual) setNow(); render(); }, 30e3);
+</script>
+</body>
+</html>

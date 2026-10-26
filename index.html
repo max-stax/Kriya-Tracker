@@ -177,7 +177,7 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
     <ul>
       <li>Shakti Chalana and Shambhavi: empty stomach, meaning 4 h after a meal and 2.5 h after a snack.</li>
       <li>Shakti Chalana and Shambhavi: 4 h after the previous one of the same practice, and at most twice a day each.</li>
-      <li>Shoonya: 3.5–4 h after the previous shoonya, when somewhat tired and hungry.</li>
+      <li>Shoonya: 3.5–4 h after the previous shoonya, when somewhat tired and hungry, and at most twice a day.</li>
       <li>No sleep for 1 h after shoonya.</li>
       <li>Every entry is a finish time. A “ready” time is when you can start.</li>
     </ul>
@@ -295,6 +295,7 @@ function renderLanes(){
     edges.push(t, t+SL, t+SL+H, t+SL+3.5*H, t+SL+4*H);
   });
   shoo = (sh.length ? seg(s, sh[0].t, "open", "Any time you’re tired & hungry") : seg(s, e, "open", "Any time you’re tired & hungry")) + shoo;
+  [...new Set([s, e-1].map(endOfDay))].forEach(eod => { const c = secondOfDay("shoonya", eod-1); if (c) { shoo += seg(c, eod, "notempty", "Done twice today"); edges.push(eod); } });
   inRange.forEach(v => edges.push(v.t));
 
   const span = (e-s)/H, step = span > 10 ? 2 : 1;
@@ -317,7 +318,9 @@ function renderLanes(){
 function stateAt(t){
   const rows = [];
   const prev = TL.sh.filter(v => v.t <= t).pop();
-  if (!prev) rows.push(`<span class="c go"></span><b>Shoonya:</b> OK when tired &amp; hungry`);
+  const s2 = secondOfDay("shoonya", t);
+  if (s2 !== null && t >= s2) rows.push(`<span class="c stop"></span><b>Shoonya:</b> done twice today; OK after midnight`);
+  else if (!prev) rows.push(`<span class="c go"></span><b>Shoonya:</b> OK when tired &amp; hungry`);
   else if (t < prev.t+SL+3.5*H) rows.push(`<span class="c stop"></span><b>Shoonya:</b> too soon until <span class="time">${fmt(prev.t+SL+3.5*H)}</span>`);
   else if (t < prev.t+SL+4*H) rows.push(`<span class="c go"></span><b>Shoonya:</b> in window until <span class="time">${fmt(prev.t+SL+4*H)}</span>`);
   else rows.push(`<span class="c go"></span><b>Shoonya:</b> allowed`);
@@ -374,7 +377,11 @@ function render(){
   const ls = last("shoonya", now), lsAll = last("shoonya"), plSh = nextPlanned("shoonya");
   const lastFood = Math.max(last("meal", now), last("snack", now));
   let sh;
-  if (!ls) {
+  if (doneBy("shoonya", now) >= 2) {
+    sh = `<span class="name">Shoonya</span><span class="pill ok">Done</span>
+      <span class="big">Done for today</span>
+      <span class="detail">2 of 2 today · last done ${fmt(ls)}</span>`;
+  } else if (!ls) {
     sh = `<span class="name">Shoonya</span><span class="pill ok">Go by feel</span>
       <span class="big">When tired &amp; hungry</span>
       <span class="detail">${plSh ? `Planned for ${fmt(plSh)}` : "No shoonya done yet"}${lastFood ? ` · last ate ${fmt(lastFood)} (${dur(now-lastFood)} ago)` : ""}</span>`;
@@ -383,7 +390,7 @@ function render(){
     sh = `<span class="name">Shoonya</span>
       <span class="pill ${ok?"ok":"no"}">${ok?(now<=ideal?"In window":"Open"):"Too soon"}</span>
       <span class="big">${ok ? "Allowed now" : `${fmt(open)} <span style="font-size:.9rem;color:var(--muted)">in ${dur(open-now)}</span>`}</span>
-      <span class="detail">Window ${fmt(open)}–${fmt(ideal)} · last done ${fmt(ls)}${plSh ? ` · planned ${fmt(plSh)}` : ""}</span>`;
+      <span class="detail">Window ${fmt(open)}–${fmt(ideal)} · last done ${fmt(ls)}${plSh ? ` · planned ${fmt(plSh)}` : ""} · ${doneBy("shoonya", now)} of 2 today</span>`;
   }
   document.getElementById("c-shoonya").innerHTML = sh;
 
@@ -394,10 +401,12 @@ function render(){
     <span class="detail">${ls ? (sleepOk ? `Clear since ${fmt(sl)}` : `No sleep until ${fmt(sl)} (${dur(sl-now)})`) : (plSh ? `After your ${fmt(plSh)} shoonya: no sleep until ${fmt(plSh+SL+H)}` : "No shoonya yet today")}</span>`;
 
   const steps = [];
-  if (plSh) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>`);
+  if (doneBy("shoonya", now) >= 2) steps.push(`<b>Shoonya</b> is done for today`);
+  else if (plSh && onDay("shoonya", now).length >= 2) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>, your second of the day`);
+  else { if (plSh) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>`);
   steps.push(lsAll
     ? `${plSh ? "Then next" : "Next"} <b>shoonya</b> from <span class="time">${fmt(Math.max(now, lsAll+SL+3.5*H))}</span>, ideally by <span class="time">${fmt(lsAll+SL+4*H)}</span>`
-    : `<b>Shoonya</b> whenever you’re somewhat tired &amp; hungry`);
+    : `<b>Shoonya</b> whenever you’re somewhat tired &amp; hungry`); }
   KRIYAS.forEach(k => { const r = readyAt(k).t; if (doneBy(k, now) >= 2) { steps.push(`<b>${NAMES[k]}</b> is done for today`); return; } steps.push(`<b>${NAMES[k]}</b> ${now >= r ? "is OK now" : `from <span class="time">${fmt(r)}</span>`}`); });
   document.getElementById("plan").innerHTML = `<h2>From here</h2><ol>${steps.map(x=>`<li style="display:list-item;border:none;padding:0">${x}</li>`).join("")}</ol>
     <p class="hint" style="margin:8px 0 0">Any food you log pushes back Shakti Chalana and Shambhavi.</p>`;
@@ -427,7 +436,7 @@ document.querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
   }
   log.push({k:b.dataset.k, t, id:`${t}-${Math.random().toString(36).slice(2,7)}`}); save(); setNow(); render();
   const nDay = onDay(b.dataset.k, t).length;
-  if ((b.dataset.k==="sck" || b.dataset.k==="smk") && nDay > 2) { document.getElementById("msg").textContent = `Logged, but that’s ${NAMES[b.dataset.k]} #${nDay} today. The limit is 2.`; return; }
+  if (b.dataset.k!=="meal" && b.dataset.k!=="snack" && nDay > 2) { document.getElementById("msg").textContent = `Logged, but that’s ${NAMES[b.dataset.k]} #${nDay} today. The limit is 2.`; return; }
   document.getElementById("msg").textContent = t > Date.now() ? `Planned ${NAMES[b.dataset.k]} for ${fmt(t)}.` : `Logged ${NAMES[b.dataset.k]} at ${fmt(t)}.`;
 });
 

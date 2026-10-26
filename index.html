@@ -179,6 +179,7 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
       <li>Shakti Chalana and Shambhavi: 4 h after the previous one of the same practice, and at most twice a day each.</li>
       <li>Shoonya: 3.5–4 h after the previous shoonya, when somewhat tired and hungry, and at most twice a day.</li>
       <li>No sleep for 1 h after shoonya.</li>
+      <li>No practice from 11:40 PM to 12:20 AM.</li>
       <li>Every entry is a finish time. A “ready” time is when you can start.</li>
     </ul>
   </details>
@@ -238,10 +239,25 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 
 // Entries that block kriya k: all food plus earlier sessions of k
 const blockers = (k, upto=Infinity) => log.filter(e => (e.k==="meal" || e.k==="snack" || e.k===k) && e.t<=upto);
+// No practice from 11:40 PM to 12:20 AM
+const BO_START = 23*60+40, BO_END = 20;
+const minsOf = t => { const d = new Date(t); return d.getHours()*60 + d.getMinutes(); };
+function blackoutEnd(t){   // end of the no-practice window containing t, or null
+  const m = minsOf(t); if (m < BO_START && m >= BO_END) return null;
+  const d = new Date(t); if (m >= BO_START) d.setDate(d.getDate()+1); d.setHours(0, BO_END, 0, 0); return d.getTime();
+}
+function blackouts(a, b){
+  const out = [], d = new Date(a); d.setDate(d.getDate()-1); d.setHours(23, 40, 0, 0);
+  for (let t = d.getTime(); t < b; ) { out.push([t, t + 40*MIN]); const n = new Date(t); n.setDate(n.getDate()+1); n.setHours(23,40,0,0); t = n.getTime(); }
+  return out.filter(([x,y]) => y > a);
+}
+const pushPastBlackout = t => blackoutEnd(t) ?? t;
 function readyAt(k){
   const c = blockers(k, Date.now()).map(e => ({t:e.t+gap(e.k), why: e.k===k ? `4 h after last ${SHORT[k]} at ${fmt(e.t)}` : `${e.k==="meal"?"4 h after meal":"2.5 h after snack"} at ${fmt(e.t)}`}))
-    .sort((a,b) => b.t-a.t)[0];
-  return c || {t:0, why:"Nothing logged yet"};
+    .sort((a,b) => b.t-a.t)[0] || {t:0, why:"Nothing logged yet"};
+  const be = blackoutEnd(Math.max(c.t, Date.now()));
+  if (be) return {t: be, why: "No practice 11:40 PM–12:20 AM"};
+  return c;
 }
 const endOfDay = t => { const d = new Date(t); d.setHours(24,0,0,0); return d.getTime(); };
 const onDay = (k, t) => log.filter(e => e.k===k && dayKey(new Date(e.t))===dayKey(new Date(t))).sort((a,b)=>a.t-b.t);
@@ -297,6 +313,10 @@ function renderLanes(){
   shoo = (sh.length ? seg(s, sh[0].t, "open", "Any time you’re tired & hungry") : seg(s, e, "open", "Any time you’re tired & hungry")) + shoo;
   [...new Set([s, e-1].map(endOfDay))].forEach(eod => { const c = secondOfDay("shoonya", eod-1); if (c) { shoo += seg(c, eod, "notempty", "Done twice today"); edges.push(eod); } });
   inRange.forEach(v => edges.push(v.t));
+  const boSegs = blackouts(s, e);
+  boSegs.forEach(([a,b]) => edges.push(a,b));
+  const bo = boSegs.map(([a,b]) => seg(a, b, "notempty", "No practice 11:40 PM–12:20 AM")).join("");
+  shoo += bo; kLane.sck += bo; kLane.smk += bo;
 
   const span = (e-s)/H, step = span > 10 ? 2 : 1;
   let ticks = "";
@@ -318,14 +338,16 @@ function renderLanes(){
 function stateAt(t){
   const rows = [];
   const prev = TL.sh.filter(v => v.t <= t).pop();
-  const s2 = secondOfDay("shoonya", t);
-  if (s2 !== null && t >= s2) rows.push(`<span class="c stop"></span><b>Shoonya:</b> done twice today; OK after midnight`);
+  const s2 = secondOfDay("shoonya", t), boE = blackoutEnd(t);
+  if (boE) rows.push(`<span class="c stop"></span><b>Shoonya:</b> no practice until <span class="time">${fmt(boE)}</span>`);
+  else if (s2 !== null && t >= s2) rows.push(`<span class="c stop"></span><b>Shoonya:</b> done twice today; OK after midnight`);
   else if (!prev) rows.push(`<span class="c go"></span><b>Shoonya:</b> OK when tired &amp; hungry`);
   else if (t < prev.t+SL+3.5*H) rows.push(`<span class="c stop"></span><b>Shoonya:</b> too soon until <span class="time">${fmt(prev.t+SL+3.5*H)}</span>`);
   else if (t < prev.t+SL+4*H) rows.push(`<span class="c go"></span><b>Shoonya:</b> in window until <span class="time">${fmt(prev.t+SL+4*H)}</span>`);
   else rows.push(`<span class="c go"></span><b>Shoonya:</b> allowed`);
   KRIYAS.forEach(k => {
     const c2 = secondOfDay(k, t);
+    if (boE) { rows.push(`<span class="c stop"></span><b>${SHORT[k]}:</b> no practice until <span class="time">${fmt(boE)}</span>`); return; }
     if (c2 !== null && t >= c2) { rows.push(`<span class="c stop"></span><b>${SHORT[k]}:</b> done twice today; OK after midnight`); return; }
     const iv = TL.merged[k].find(([a,b]) => t >= a && t < b);
     if (!iv) { rows.push(`<span class="c go"></span><b>${SHORT[k]}:</b> OK`); return; }
@@ -377,7 +399,12 @@ function render(){
   const ls = last("shoonya", now), lsAll = last("shoonya"), plSh = nextPlanned("shoonya");
   const lastFood = Math.max(last("meal", now), last("snack", now));
   let sh;
-  if (doneBy("shoonya", now) >= 2) {
+  const nowBo = blackoutEnd(now);
+  if (nowBo && doneBy("shoonya", now) < 2) {
+    sh = `<span class="name">Shoonya</span><span class="pill no">Not now</span>
+      <span class="big">${fmt(nowBo)} <span style="font-size:.9rem;color:var(--muted)">in ${dur(nowBo-now)}</span></span>
+      <span class="detail">No practice 11:40 PM–12:20 AM</span>`;
+  } else if (doneBy("shoonya", now) >= 2) {
     sh = `<span class="name">Shoonya</span><span class="pill ok">Done</span>
       <span class="big">Done for today</span>
       <span class="detail">2 of 2 today · last done ${fmt(ls)}</span>`;
@@ -386,7 +413,7 @@ function render(){
       <span class="big">When tired &amp; hungry</span>
       <span class="detail">${plSh ? `Planned for ${fmt(plSh)}` : "No shoonya done yet"}${lastFood ? ` · last ate ${fmt(lastFood)} (${dur(now-lastFood)} ago)` : ""}</span>`;
   } else {
-    const open = ls+SL+3.5*H, ideal = ls+SL+4*H, ok = now >= open;
+    const open = pushPastBlackout(ls+SL+3.5*H), ideal = ls+SL+4*H, ok = now >= open;
     sh = `<span class="name">Shoonya</span>
       <span class="pill ${ok?"ok":"no"}">${ok?(now<=ideal?"In window":"Open"):"Too soon"}</span>
       <span class="big">${ok ? "Allowed now" : `${fmt(open)} <span style="font-size:.9rem;color:var(--muted)">in ${dur(open-now)}</span>`}</span>
@@ -405,7 +432,7 @@ function render(){
   else if (plSh && onDay("shoonya", now).length >= 2) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>, your second of the day`);
   else { if (plSh) steps.push(`<b>Shoonya</b> planned at <span class="time">${fmt(plSh)}</span>`);
   steps.push(lsAll
-    ? `${plSh ? "Then next" : "Next"} <b>shoonya</b> from <span class="time">${fmt(Math.max(now, lsAll+SL+3.5*H))}</span>, ideally by <span class="time">${fmt(lsAll+SL+4*H)}</span>`
+    ? `${plSh ? "Then next" : "Next"} <b>shoonya</b> from <span class="time">${fmt(pushPastBlackout(Math.max(now, lsAll+SL+3.5*H)))}</span>${pushPastBlackout(Math.max(now, lsAll+SL+3.5*H)) < lsAll+SL+4*H ? `, ideally by <span class="time">${fmt(lsAll+SL+4*H)}</span>` : ""}`
     : `<b>Shoonya</b> whenever you’re somewhat tired &amp; hungry`); }
   KRIYAS.forEach(k => { const r = readyAt(k).t; if (doneBy(k, now) >= 2) { steps.push(`<b>${NAMES[k]}</b> is done for today`); return; } steps.push(`<b>${NAMES[k]}</b> ${now >= r ? "is OK now" : `from <span class="time">${fmt(r)}</span>`}`); });
   document.getElementById("plan").innerHTML = `<h2>From here</h2><ol>${steps.map(x=>`<li style="display:list-item;border:none;padding:0">${x}</li>`).join("")}</ol>
@@ -436,6 +463,7 @@ document.querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
   }
   log.push({k:b.dataset.k, t, id:`${t}-${Math.random().toString(36).slice(2,7)}`}); save(); setNow(); render();
   const nDay = onDay(b.dataset.k, t).length;
+  if (b.dataset.k!=="meal" && b.dataset.k!=="snack" && blackoutEnd(t)) { document.getElementById("msg").textContent = `Logged, but ${fmt(t)} is inside the no-practice window (11:40 PM–12:20 AM).`; return; }
   if (b.dataset.k!=="meal" && b.dataset.k!=="snack" && nDay > 2) { document.getElementById("msg").textContent = `Logged, but that’s ${NAMES[b.dataset.k]} #${nDay} today. The limit is 2.`; return; }
   document.getElementById("msg").textContent = t > Date.now() ? `Planned ${NAMES[b.dataset.k]} for ${fmt(t)}.` : `Logged ${NAMES[b.dataset.k]} at ${fmt(t)}.`;
 });

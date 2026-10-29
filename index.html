@@ -71,6 +71,13 @@ li:first-child{border-top:none}
 li .what{flex:1;min-width:0}
 li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);background:transparent}
 .empty{padding:14px 16px;color:var(--muted)}
+.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tab{border:none;border-radius:0;background:transparent;color:var(--muted);display:grid;justify-items:center;gap:3px;padding:9px 4px 8px;font-size:.75rem;font-weight:600}
+.tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-current="page"]{color:var(--accent)}
+.tab:hover{border:none}
+.view{display:grid;gap:20px}
 .mandala{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:14px}
 .mrow{display:grid;gap:8px}
 .mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -148,6 +155,8 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
     <p class="sub" id="now"></p>
   </header>
 
+  <div id="view-timing" class="view">
+
   <section class="tl" aria-label="Today's timing lanes">
     <div class="readout" id="ro"></div>
     <div class="tl-body" id="tlwrap"><div id="tl"></div><div class="scrub" id="scrub" hidden></div></div>
@@ -185,7 +194,7 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
       <button type="button" class="prac" data-k="sck">Shakti Chalana</button>
       <button type="button" class="prac" data-k="smk">Shambhavi</button>
     </div>
-    <p class="hint" id="msg">Leave the time on “now”, set an earlier time, or set a later time to plan ahead. Log everything at the time you finished it, including plans.</p>
+    <p class="hint" id="msg">Leave the time on “now”, set an earlier time, or set a later time to plan ahead. The log clears at midnight. Log everything at the time you finished it, including plans.</p>
   </section>
 
   <section>
@@ -193,6 +202,9 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
     <ul id="list"></ul>
   </section>
 
+  </div>
+
+  <div id="view-mandala" class="view" hidden>
   <section class="mandala" id="mandala" aria-label="Mandalas">
     <h2 style="margin:0">Mandalas</h2>
     <div id="mlist" style="display:grid;gap:18px"></div>
@@ -209,6 +221,8 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
       <button type="button" id="mgo" style="padding:7px 12px">Start</button>
     </div>
   </section>
+
+  </div>
 
   <details class="rules">
     <summary>Rules this uses</summary>
@@ -242,6 +256,13 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
   </div>
 </div>
 
+<nav class="tabbar" aria-label="Sections">
+  <button type="button" class="tab" data-tab="timing" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Timing</button>
+  <button type="button" class="tab" data-tab="mandala">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h2M14 14h2M8 18h2"/></svg>Mandala</button>
+</nav>
+
 <script>
 const H = 3600e3, MIN = 60e3, SL = 0;   // every entry is logged at its finish time
 const NAMES = {meal:"Meal", snack:"Snack", shoonya:"Shoonya", sck:"Shakti Chalana", smk:"Shambhavi"};
@@ -254,19 +275,21 @@ const gap = k => k==="snack" ? 2.5*H : 4*H;   // how long each entry blocks a kr
 let log = [];
 try { log = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e) { log = []; }
 if (!Array.isArray(log)) log = [];
-log = log.filter(e => e && NAMES[e.k] && e.t > Date.now() - 14*24*H);
+log = log.filter(e => e && NAMES[e.k]);
 log.forEach(e => { if (!e.id) e.id = `${e.t}-${Math.random().toString(36).slice(2,7)}`; });
 let mandalas = {};   // {practice: {start: "YYYY-MM-DD", marks: {"YYYY-MM-DD": true}}}
 try { mandalas = JSON.parse(localStorage.getItem(KEY+"-mandala") || "{}") || {}; } catch(e) { mandalas = {}; }
 let deleted = [];
 try { deleted = JSON.parse(localStorage.getItem(KEY+"-del") || "[]"); } catch(e) { deleted = []; }
-const fresh = () => { const c = Date.now() - 14*24*H; log = log.filter(e => e.t > c); deleted = deleted.filter(d => d.t > c); };
+// Clear yesterday at midnight. Late-night entries are kept a few more hours
+// (hidden from Today) while they still affect a timer, e.g. a 10 PM SCK.
+const keep = e => dayKey(new Date(e.t)) === dayKey(new Date()) || e.t > Date.now() - 4.5*H;
+const fresh = () => { log = log.filter(keep); deleted = deleted.filter(keep); };
 
 const save = () => {
   fresh();
   try { localStorage.setItem(KEY, JSON.stringify(log)); localStorage.setItem(KEY+"-del", JSON.stringify(deleted)); localStorage.setItem(KEY+"-mandala", JSON.stringify(mandalas)); } catch(e){}
 };
-save();
 
 // Ask the browser not to clear this app's data
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
@@ -520,7 +543,7 @@ function render(){
     <p class="hint" style="margin:8px 0 0">Any food you log pushes back Shakti Chalana and Shambhavi.</p>`;
 
   if (document.activeElement && document.activeElement.classList.contains("et")) return;
-  const today = log.slice().sort((a,b)=>a.t-b.t);
+  const today = log.filter(e => dayKey(new Date(e.t)) === dayKey(new Date())).sort((a,b)=>a.t-b.t);
   document.getElementById("list").innerHTML = today.length ? today.map(e => `
     <li><input type="time" class="et" id="et-${esc(e.id)}" data-id="${esc(e.id)}" value="${hhmm(e.t)}" aria-label="Time for ${esc(NAMES[e.k])}">
     <span class="what">${esc(NAMES[e.k])}${e.t > Date.now() ? ` <span class="planned">planned</span>` : ""}</span>
@@ -590,6 +613,16 @@ document.getElementById("clear").onclick = ev => {
 })();
 document.getElementById("ro").addEventListener("click", () => { scrubT = null; showAt(Date.now()); });
 
+// Tabs
+function showTab(name){
+  document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "view-" + name);
+  document.querySelectorAll(".tab").forEach(t => { if (t.dataset.tab === name) t.setAttribute("aria-current","page"); else t.removeAttribute("aria-current"); });
+  try { localStorage.setItem(KEY+"-tab", name); } catch(e){}
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => showTab(t.dataset.tab));
+try { const t = localStorage.getItem(KEY+"-tab"); if (t === "mandala") showTab("mandala"); } catch(e){}
+
 // Mandala controls
 document.getElementById("md").value = ymd(new Date());
 document.getElementById("mgo").onclick = () => {
@@ -637,8 +670,15 @@ document.getElementById("bkLoad").onclick = () => {
 
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch(e){} }
 
+renderMandalas();   // credit yesterday's mandala day before its entries are cleared
+save();
 render();
-setInterval(() => { if (!manual) setNow(); render(); }, 30e3);
+let lastDay = dayKey(new Date());
+setInterval(() => {
+  if (!manual) setNow();
+  if (dayKey(new Date()) !== lastDay) { lastDay = dayKey(new Date()); renderMandalas(); save(); }
+  render();
+}, 30e3);
 </script>
 </body>
 </html>

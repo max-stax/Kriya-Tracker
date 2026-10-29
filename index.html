@@ -71,6 +71,27 @@ li:first-child{border-top:none}
 li .what{flex:1;min-width:0}
 li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);background:transparent}
 .empty{padding:14px 16px;color:var(--muted)}
+.mandala{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:14px}
+.mrow{display:grid;gap:8px}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.mhead .name{font-family:var(--display);font-weight:700;font-size:1.05rem}
+.mhead .cnt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.9rem}
+.mbar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.mbar i{display:block;height:100%;background:var(--ok)}
+.mgrid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.mday{aspect-ratio:1;max-width:100%;border-radius:5px;border:1px solid var(--line);background:var(--bg);font:inherit;font-family:var(--mono);font-size:.66rem;color:var(--muted);padding:0;display:grid;place-items:center;cursor:pointer}
+.mday.done{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.mday.half{background:linear-gradient(135deg,var(--ok-soft) 50%,var(--bg) 50%);color:var(--ink)}
+.mday.missed{background:var(--no-soft);border-color:var(--no);color:var(--no)}
+.mday.today{outline:2px solid var(--accent);outline-offset:1px}
+.mday.future{cursor:default;opacity:.55}
+.mmeta{font-size:.82rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mmeta button{font-size:.8rem;padding:4px 10px;font-weight:500}
+.mstart{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.mstart select,.mstart input{font:inherit;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.mlegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.75rem;color:var(--muted)}
+.mlegend span{display:inline-flex;align-items:center;gap:5px}
+.mlegend i{width:12px;height:12px;border-radius:3px;border:1px solid var(--line);display:inline-block}
 .plan{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .plan ol{margin:0;padding-left:1.2em;display:grid;gap:4px}
 .rules{font-size:.85rem;color:var(--muted)}
@@ -172,6 +193,23 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
     <ul id="list"></ul>
   </section>
 
+  <section class="mandala" id="mandala" aria-label="Mandalas">
+    <h2 style="margin:0">Mandalas</h2>
+    <div id="mlist" style="display:grid;gap:18px"></div>
+    <div class="mlegend">
+      <span><i style="background:var(--ok);border-color:var(--ok)"></i>2 sessions</span>
+      <span><i style="background:linear-gradient(135deg,var(--ok-soft) 50%,var(--bg) 50%)"></i>1 session</span>
+      <span><i style="background:var(--no-soft);border-color:var(--no)"></i>Missed</span>
+    </div>
+    <p class="hint" style="margin:0">A day fills in when you log 2 sessions. Tap a past day to mark it done if you didn’t log it here.</p>
+    <div class="mstart">
+      <label class="label" for="mk">Start a mandala</label>
+      <select id="mk"><option value="sck">Shakti Chalana</option><option value="shoonya">Shoonya</option><option value="smk">Shambhavi</option></select>
+      <input type="date" id="md" aria-label="Start date">
+      <button type="button" id="mgo" style="padding:7px 12px">Start</button>
+    </div>
+  </section>
+
   <details class="rules">
     <summary>Rules this uses</summary>
     <ul>
@@ -180,6 +218,7 @@ li .x{padding:4px 10px;font-weight:500;font-size:.82rem;color:var(--muted);backg
       <li>Shoonya: 3.5–4 h after the previous shoonya, when somewhat tired and hungry, and at most twice a day.</li>
       <li>No sleep for 1 h after shoonya.</li>
       <li>No practice from 11:40 PM to 12:20 AM.</li>
+      <li>Mandala: 40 days in a row with 2 sessions each day.</li>
       <li>Every entry is a finish time. A “ready” time is when you can start.</li>
     </ul>
   </details>
@@ -217,13 +256,15 @@ try { log = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e) { log = []
 if (!Array.isArray(log)) log = [];
 log = log.filter(e => e && NAMES[e.k] && e.t > Date.now() - 14*24*H);
 log.forEach(e => { if (!e.id) e.id = `${e.t}-${Math.random().toString(36).slice(2,7)}`; });
+let mandalas = {};   // {practice: {start: "YYYY-MM-DD", marks: {"YYYY-MM-DD": true}}}
+try { mandalas = JSON.parse(localStorage.getItem(KEY+"-mandala") || "{}") || {}; } catch(e) { mandalas = {}; }
 let deleted = [];
 try { deleted = JSON.parse(localStorage.getItem(KEY+"-del") || "[]"); } catch(e) { deleted = []; }
 const fresh = () => { const c = Date.now() - 14*24*H; log = log.filter(e => e.t > c); deleted = deleted.filter(d => d.t > c); };
 
 const save = () => {
   fresh();
-  try { localStorage.setItem(KEY, JSON.stringify(log)); localStorage.setItem(KEY+"-del", JSON.stringify(deleted)); } catch(e){}
+  try { localStorage.setItem(KEY, JSON.stringify(log)); localStorage.setItem(KEY+"-del", JSON.stringify(deleted)); localStorage.setItem(KEY+"-mandala", JSON.stringify(mandalas)); } catch(e){}
 };
 save();
 
@@ -389,7 +430,47 @@ function kriyaCard(k){
     <span class="detail">${r.why}${l ? ` · last done ${fmt(l)}` : ""}${pl ? ` · planned ${fmt(pl)}` : ""} · ${n} of 2 today</span>`;
 }
 
+// Mandala: 40 consecutive days, 2 sessions a day
+const MDAYS = 40;
+const ymd = d => d.toLocaleDateString("en-CA");
+const fromYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d, 12); };
+const addDays = (s, n) => { const d = fromYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const sessionsOn = (k, day) => log.filter(e => e.k===k && e.t <= Date.now() && ymd(new Date(e.t))===day).length;
+function renderMandalas(){
+  const today = ymd(new Date());
+  let changed = false;
+  const rows = Object.entries(mandalas).filter(([k]) => NAMES[k]).map(([k, m]) => {
+    m.marks = m.marks || {};
+    let done = 0, cells = "", missed = 0;
+    for (let i = 0; i < MDAYS; i++) {
+      const day = addDays(m.start, i), n = sessionsOn(k, day);
+      if (n >= 2 && !m.marks[day]) { m.marks[day] = true; changed = true; }
+      let cls;
+      if (m.marks[day]) { cls = "done"; done++; }
+      else if (day > today) cls = "future";
+      else if (n === 1) cls = "half";
+      else if (day < today) { cls = "missed"; missed++; }
+      else cls = "";
+      if (day === today) cls += " today";
+      const label = fromYmd(day).toLocaleDateString([], {month:"short", day:"numeric"});
+      cells += `<button type="button" class="mday ${cls}" data-mk="${k}" data-day="${day}" ${day > today ? "disabled" : ""} aria-label="Day ${i+1}, ${label}: ${m.marks[day] ? "done" : day > today ? "upcoming" : n === 1 ? "1 session" : "not done"}" title="Day ${i+1} · ${label}">${i+1}</button>`;
+    }
+    const end = addDays(m.start, MDAYS-1), dayNum = Math.floor((fromYmd(today) - fromYmd(m.start)) / 864e5) + 1;
+    const status = done >= MDAYS ? "Complete" : dayNum > MDAYS ? `Ended ${fromYmd(end).toLocaleDateString([], {month:"short", day:"numeric"})}` : `Day ${Math.max(1, dayNum)} of ${MDAYS}`;
+    return `<div class="mrow">
+      <div class="mhead"><span class="name">${NAMES[k]}</span><span class="cnt">${done}/${MDAYS} done · ${status}</span></div>
+      <div class="mbar"><i style="width:${done/MDAYS*100}%"></i></div>
+      <div class="mgrid">${cells}</div>
+      <div class="mmeta"><span>${fromYmd(m.start).toLocaleDateString([], {month:"short", day:"numeric"})} – ${fromYmd(end).toLocaleDateString([], {month:"short", day:"numeric"})}${missed ? ` · ${missed} missed` : ""}</span>
+      <button type="button" data-mend="${k}">End mandala</button></div>
+    </div>`;
+  });
+  document.getElementById("mlist").innerHTML = rows.length ? rows.join("") : `<p class="hint" style="margin:0">No mandala running. Pick a practice and its start date below.</p>`;
+  if (changed) save();
+}
+
 function render(){
+  renderMandalas();
   const now = Date.now();
   renderLanes();
   document.getElementById("now").textContent = new Date().toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"}) + " · " + fmt(now);
@@ -509,10 +590,32 @@ document.getElementById("clear").onclick = ev => {
 })();
 document.getElementById("ro").addEventListener("click", () => { scrubT = null; showAt(Date.now()); });
 
+// Mandala controls
+document.getElementById("md").value = ymd(new Date());
+document.getElementById("mgo").onclick = () => {
+  const k = document.getElementById("mk").value, d = document.getElementById("md").value;
+  if (!d) return;
+  mandalas[k] = {start: d, marks: (mandalas[k] && mandalas[k].start === d) ? mandalas[k].marks : {}};
+  save(); render();
+};
+let endArmed = null;
+document.getElementById("mlist").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.day) {
+    const m = mandalas[b.dataset.mk]; if (!m || b.disabled) return;
+    if (m.marks[b.dataset.day]) delete m.marks[b.dataset.day]; else m.marks[b.dataset.day] = true;
+    save(); render(); return;
+  }
+  if (b.dataset.mend) {
+    if (endArmed !== b.dataset.mend) { endArmed = b.dataset.mend; b.textContent = "Tap again to end"; setTimeout(() => { endArmed = null; renderMandalas(); }, 3000); return; }
+    delete mandalas[b.dataset.mend]; endArmed = null; save(); render();
+  }
+});
+
 // Backup
 const bk = document.getElementById("bk"), bkMsg = document.getElementById("bkMsg");
 document.getElementById("bkCopy").onclick = () => {
-  bk.value = JSON.stringify({kriyaLog: 1, entries: log});
+  bk.value = JSON.stringify({kriyaLog: 1, entries: log, mandalas});
   const done = () => bkMsg.textContent = "Copied. Paste it somewhere safe, like Notes.";
   const fallback = () => { bk.focus(); bk.select(); bkMsg.textContent = "Selected. Copy it from the box."; };
   try { navigator.clipboard.writeText(bk.value).then(done, fallback); } catch(e) { fallback(); }
@@ -523,6 +626,11 @@ document.getElementById("bkLoad").onclick = () => {
     if (!Array.isArray(list)) throw 0;
     const have = new Set(log.map(e => e.id)); let n = 0;
     list.forEach(e => { if (e && NAMES[e.k] && typeof e.t === "number" && e.id && !have.has(e.id)) { log.push(e); n++; } });
+    if (d && d.mandalas && typeof d.mandalas === "object") Object.entries(d.mandalas).forEach(([k, m]) => {
+      if (!NAMES[k] || !m || !/^\d{4}-\d{2}-\d{2}$/.test(m.start)) return;
+      const cur = mandalas[k];
+      if (!cur || cur.start === m.start) mandalas[k] = {start: m.start, marks: Object.assign({}, cur ? cur.marks : {}, m.marks || {})};
+    });
     save(); render(); bkMsg.textContent = `Added ${n} entr${n===1?"y":"ies"}.`;
   } catch(e) { bkMsg.textContent = "That text isn’t a tracker log. Paste the whole thing from Copy log."; }
 };
